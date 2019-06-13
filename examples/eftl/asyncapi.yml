@@ -1,0 +1,47 @@
+asyncapi: '2.0.0-rc1'
+id: 'urn:com:eftl:server'
+info:
+  title: EFTL Application
+  version: '1.0.0'
+  description: EFTL Application
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: ws://localhost:9191/channel
+    description: Development server
+    protocol: eftl
+    protocolVersion: '1.0.0'
+channels:
+  message:
+    description: A message channel
+    subscribe:
+      summary: Get messages
+      message:
+        $ref: '#/components/messages/message'
+    publish:
+      summary: Send messages
+      message:
+        $ref: '#/components/messages/message'
+  dup:
+    description: A duplicate message channel
+    subscribe:
+      summary: Get messages
+      message:
+        $ref: '#/components/messages/message'
+    publish:
+      summary: Send messages
+      message:
+        $ref: '#/components/messages/message'
+components:
+  messages:
+    message:
+      name: message
+      title: A message
+      summary: A message
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/message"
+  schemas:
+    message:
+      type: object

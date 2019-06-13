@@ -1,0 +1,77 @@
+asyncapi: '2.0.0-rc1'
+id: 'urn:com:http:server'
+info:
+  title: HTTP Application
+  version: '1.0.0'
+  description: HTTP Application
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: https://localhost:{port}
+    description: Development server
+    protocol: https
+    protocolVersion: '1.0.0'
+    baseChannel: 'test'
+    variables:
+      port:
+        description: HTTP port number
+        default: '1234'
+        enum:
+          - '1234'
+          - '1235'
+channels:
+  message:
+    description: A message channel
+    subscribe:
+      summary: Get messages
+      message:
+        $ref: '#/components/messages/message'
+      protocolInfo:
+        flogo-http:
+          method: "POST"
+          headers:
+            TEST: 'abc123'
+          timeout: 30
+          skipVerify: false
+          useSystemCert: false
+    publish:
+      summary: Send messages
+      message:
+        $ref: '#/components/messages/message'
+      protocolInfo:
+        flogo-http:
+          method: "POST"
+          headers:
+            TEST: 'abc123'
+          timeout: 30
+          skipVerify: false
+          useSystemCert: false
+  dup/{id}:
+    description: A duplicate message channel
+    subscribe:
+      summary: Get messages
+      message:
+        $ref: '#/components/messages/message'
+      protocolInfo:
+        flogo-http:
+          method: "POST"
+    publish:
+      summary: Send messages
+      message:
+        $ref: '#/components/messages/message'
+      protocolInfo:
+        flogo-http:
+          method: "POST"
+components:
+  messages:
+    message:
+      name: message
+      title: A message
+      summary: A message
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/message"
+  schemas:
+    message:
+      type: object

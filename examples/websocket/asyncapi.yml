@@ -1,0 +1,37 @@
+asyncapi: '2.0.0-rc1'
+id: 'urn:com:websocket:server'
+info:
+  title: Websocket Application
+  version: '1.0.0'
+  description: Websocket Application
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: ws://localhost:8000/ws
+    description: Development server
+    protocol: ws
+    protocolVersion: '1.0.0'
+channels:
+  dummy:
+    description: A message channel
+    subscribe:
+      summary: Get messages
+      message:
+        $ref: '#/components/messages/message'
+      protocolInfo:
+        flogo-kafka:
+          partitions: "0"
+          offset: 0
+components:
+  messages:
+    message:
+      name: message
+      title: A message
+      summary: A message
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/message"
+  schemas:
+    message:
+      type: object

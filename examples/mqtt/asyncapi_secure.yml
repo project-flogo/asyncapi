@@ -1,0 +1,64 @@
+asyncapi: '2.0.0-rc1'
+id: 'urn:com:mqtt:server'
+info:
+  title: MQTT Application
+  version: '1.0.0'
+  description: MQTT Application
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: ssl://localhost:1883
+    description: Development server
+    protocol: secure-mqtt
+    protocolVersion: '1.0.0'
+    x-store: ':memory:'
+    x-clean-session: false
+    x-keep-alive: 2
+    x-auto-reconnect: true
+    x-skip-verify: false
+    x-use-systemcert: false
+channels:
+  message/{id}:
+    description: A message channel
+    subscribe:
+      summary: Get messages
+      message:
+        $ref: '#/components/messages/message'
+      protocolInfo:
+        flogo-mqtt:
+          replyTopic: ""
+          qos: 1
+    publish:
+      summary: Send messages
+      message:
+        $ref: '#/components/messages/message'
+      protocolInfo:
+        flogo-mqtt:
+          store: ':memory:'
+          cleanSession: false
+          qos: 1
+          skipVerify: false
+          useSystemCert: false
+  dup:
+    description: A duplicate message channel
+    subscribe:
+      summary: Get messages
+      message:
+        $ref: '#/components/messages/message'
+    publish:
+      summary: Send messages
+      message:
+        $ref: '#/components/messages/message'
+components:
+  messages:
+    message:
+      name: message
+      title: A message
+      summary: A message
+      contentType: application/json
+      payload:
+        $ref: "#/components/schemas/message"
+  schemas:
+    message:
+      type: object

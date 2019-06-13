@@ -1,5 +1,5 @@
 # asyncapi
-[AsynAPI](https://github.com/asyncapi/asyncapi) to flogo app converter tool converts given AsynAPI spec to its implementation based on flogo api/descriptor model.
+[AsynAPI](https://github.com/asyncapi/asyncapi) to flogo app converter tool converts given AsynAPI spec to its implementation based on flogo api/descriptor model using the [Microgateway Action](https://github.com/project-flogo/microgateway).
 
 Currently this tool accepts below arguments.
 ```sh

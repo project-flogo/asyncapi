@@ -77,6 +77,13 @@ func TestAsyncApi(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
+
+	cmd := exec.Command("go", "build")
+	err := cmd.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+
 	test("examples/eftl/asyncapi.yml")
 	test("examples/eftl/asyncapi_secure.yml")
 	test("examples/http/asyncapi.yml")

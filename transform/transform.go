@@ -20,6 +20,11 @@ import (
 	"github.com/project-flogo/microgateway/api"
 )
 
+const (
+	// MicrogatewayVersion is the version of the microgateway to use
+	MicrogatewayVersion = "v0.0.0-20190617210902-b0f3295927c1"
+)
+
 // Transform converts an asyn api to a new representation
 func Transform(input, output, conversionType string) {
 	switch conversionType {
@@ -33,13 +38,14 @@ func Transform(input, output, conversionType string) {
 }
 
 type protocolConfig struct {
-	name, secure      string
-	trigger, activity string
-	port              int
-	contentPath       string
-	triggerSettings   func(s settings) map[string]interface{}
-	handlerSettings   func(s settings) map[string]interface{}
-	serviceSettings   func(s settings) map[string]interface{}
+	name, secure                  string
+	trigger, activity             string
+	triggerImport, activityImport string
+	port                          int
+	contentPath                   string
+	triggerSettings               func(s settings) map[string]interface{}
+	handlerSettings               func(s settings) map[string]interface{}
+	serviceSettings               func(s settings) map[string]interface{}
 }
 
 type settings struct {
@@ -146,6 +152,18 @@ func getPort(url string) ([]chunk, bool) {
 }
 
 func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDocument, schemes map[string]interface{}, flogo *app.Config) {
+	addImport := func(path, version string) {
+		if version != "" {
+			path = fmt.Sprintf(path, version)
+		}
+		for _, port := range flogo.Imports {
+			if strings.Contains(port, path) {
+				return
+			}
+		}
+		flogo.Imports = append(flogo.Imports, path)
+	}
+
 	services := make([]*api.Service, 0, 8)
 	for i, server := range model.Servers {
 		baseChannel := strings.TrimSuffix(server.BaseChannel, "/")
@@ -214,6 +232,23 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 				extensions:     server.Extensions,
 			}
 
+			if value := s.extensions["x-trigger-version"]; len(value) > 0 {
+				var version string
+				err := json.Unmarshal(value, &version)
+				if err != nil {
+					panic(err)
+				}
+				addImport(p.triggerImport, version)
+			}
+			if value := s.extensions["x-activity-version"]; len(value) > 0 {
+				var version string
+				err := json.Unmarshal(value, &version)
+				if err != nil {
+					panic(err)
+				}
+				addImport(p.activityImport, version)
+			}
+
 			if chunks, hasVariable := getPort(server.Url); len(chunks) > 0 {
 				if hasVariable {
 					if len(chunks) > 1 {
@@ -274,6 +309,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 					handler := trigger.HandlerConfig{
 						Settings: p.handlerSettings(s),
 					}
+					addImport("github.com/project-flogo/microgateway@%s", MicrogatewayVersion)
 					action := action.Config{
 						Ref: "github.com/project-flogo/microgateway",
 						Settings: map[string]interface{}{
@@ -316,12 +352,14 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 		gateway := &api.Microgateway{
 			Name: p.name,
 		}
+		addImport("github.com/project-flogo/contrib/activity/log", "")
 		service := &api.Service{
 			Name:        "log",
 			Ref:         "github.com/project-flogo/contrib/activity/log",
 			Description: "logging service",
 		}
 		gateway.Services = append(gateway.Services, service)
+		addImport("github.com/nareshkumarthota/flogocomponents/activity/methodinvoker", "")
 		service = &api.Service{
 			Name:        "methodinvoker",
 			Ref:         "github.com/nareshkumarthota/flogocomponents/activity/methodinvoker",
@@ -363,6 +401,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 	}
 
 	if len(services) > 0 {
+		addImport("github.com/project-flogo/contrib/trigger/rest", "")
 		trig := trigger.Config{
 			Id:  fmt.Sprintf("%sPublish", p.name),
 			Ref: "github.com/project-flogo/contrib/trigger/rest",
@@ -376,6 +415,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 				"path":   "/post",
 			},
 		}
+		addImport("github.com/project-flogo/microgateway@%s", MicrogatewayVersion)
 		action := action.Config{
 			Ref: "github.com/project-flogo/microgateway",
 			Settings: map[string]interface{}{
@@ -393,6 +433,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 		gateway := &api.Microgateway{
 			Name: fmt.Sprintf("%sPublish", p.name),
 		}
+		addImport("github.com/project-flogo/contrib/activity/log", "")
 		service := &api.Service{
 			Name:        "log",
 			Ref:         "github.com/project-flogo/contrib/activity/log",
@@ -422,12 +463,14 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 
 var configs = [...]protocolConfig{
 	{
-		name:        "kafka",
-		secure:      "kafka-secure",
-		trigger:     "github.com/project-flogo/contrib/trigger/kafka",
-		activity:    "github.com/project-flogo/contrib/activity/kafka",
-		port:        9096,
-		contentPath: "message",
+		name:           "kafka",
+		secure:         "kafka-secure",
+		trigger:        "github.com/project-flogo/contrib/trigger/kafka",
+		activity:       "github.com/project-flogo/contrib/activity/kafka",
+		triggerImport:  "github.com/project-flogo/contrib/trigger/kafka@%s",
+		activityImport: "github.com/project-flogo/contrib/activity/kafka@%s",
+		port:           9096,
+		contentPath:    "message",
 		triggerSettings: func(s settings) map[string]interface{} {
 			settings := map[string]interface{}{
 				"brokerUrls": s.url,
@@ -483,12 +526,14 @@ var configs = [...]protocolConfig{
 		},
 	},
 	{
-		name:        "eftl",
-		secure:      "eftl-secure",
-		trigger:     "github.com/project-flogo/eftl/trigger",
-		activity:    "github.com/project-flogo/eftl/activity",
-		port:        9097,
-		contentPath: "content",
+		name:           "eftl",
+		secure:         "eftl-secure",
+		trigger:        "github.com/project-flogo/eftl/trigger",
+		activity:       "github.com/project-flogo/eftl/activity",
+		triggerImport:  "github.com/project-flogo/eftl@%s:/trigger",
+		activityImport: "github.com/project-flogo/eftl@%s:/activity",
+		port:           9097,
+		contentPath:    "content",
 		triggerSettings: func(s settings) map[string]interface{} {
 			settings := map[string]interface{}{
 				"id":  fmt.Sprintf("%s%d", s.name, s.serverIndex),
@@ -530,12 +575,14 @@ var configs = [...]protocolConfig{
 		},
 	},
 	{
-		name:        "mqtt",
-		secure:      "secure-mqtt",
-		trigger:     "github.com/project-flogo/edge-contrib/trigger/mqtt",
-		activity:    "github.com/project-flogo/edge-contrib/activity/mqtt",
-		port:        9098,
-		contentPath: "message",
+		name:           "mqtt",
+		secure:         "secure-mqtt",
+		trigger:        "github.com/project-flogo/edge-contrib/trigger/mqtt",
+		activity:       "github.com/project-flogo/edge-contrib/activity/mqtt",
+		triggerImport:  "github.com/project-flogo/edge-contrib/trigger/mqtt@%s",
+		activityImport: "github.com/project-flogo/edge-contrib/activity/mqtt@%s",
+		port:           9098,
+		contentPath:    "message",
 		triggerSettings: func(s settings) map[string]interface{} {
 			settings := map[string]interface{}{
 				"id":     fmt.Sprintf("%s%d", s.name, s.serverIndex),
@@ -702,11 +749,12 @@ var configs = [...]protocolConfig{
 		},
 	},
 	{
-		name:        "ws",
-		secure:      "wss",
-		trigger:     "github.com/project-flogo/websocket/trigger/wsclient",
-		port:        9099,
-		contentPath: "content",
+		name:          "ws",
+		secure:        "wss",
+		trigger:       "github.com/project-flogo/websocket/trigger/wsclient",
+		triggerImport: "github.com/project-flogo/websocket@%s:/trigger/wsclient",
+		port:          9099,
+		contentPath:   "content",
 		triggerSettings: func(s settings) map[string]interface{} {
 			settings := map[string]interface{}{
 				"url": s.url,
@@ -728,12 +776,14 @@ var configs = [...]protocolConfig{
 		},
 	},
 	{
-		name:        "http",
-		secure:      "https",
-		trigger:     "github.com/project-flogo/contrib/trigger/rest",
-		activity:    "github.com/project-flogo/contrib/activity/rest",
-		port:        9100,
-		contentPath: "content",
+		name:           "http",
+		secure:         "https",
+		trigger:        "github.com/project-flogo/contrib/trigger/rest",
+		activity:       "github.com/project-flogo/contrib/activity/rest",
+		triggerImport:  "github.com/project-flogo/contrib/trigger/rest@%s",
+		activityImport: "github.com/project-flogo/contrib/activity/rest@%s",
+		port:           9100,
+		contentPath:    "content",
 		triggerSettings: func(s settings) map[string]interface{} {
 			port := "80"
 			if s.secure {
@@ -910,7 +960,7 @@ func ToAPI(input, output string) {
 	if err != nil {
 		panic(err)
 	}
-	microgateway.Generate(flogo, output+"/app.go")
+	microgateway.Generate(flogo, output+"/app.go", output+"/go.mod")
 }
 
 // ToJSON converts an async api to a JSON flogo application

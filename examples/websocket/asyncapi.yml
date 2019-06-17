@@ -12,6 +12,7 @@ servers:
     description: Development server
     protocol: ws
     protocolVersion: '1.0.0'
+    x-trigger-version: v0.0.0-20190201184711-2efafcb15730
 channels:
   /dummy:
     description: A message channel

@@ -12,6 +12,8 @@ servers:
     description: Development server
     protocol: eftl
     protocolVersion: '1.0.0'
+    x-trigger-version: v0.0.0-20190318194200-d6dc627012e5
+    x-activity-version: v0.0.0-20190318194200-d6dc627012e5
 channels:
   /message:
     description: A message channel

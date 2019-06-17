@@ -12,6 +12,8 @@ servers:
     description: Development server
     protocol: https
     protocolVersion: '1.0.0'
+    x-trigger-version: v0.9.0-rc.1.0.20190509204259-4246269fb68e
+    x-activity-version: v0.9.0-rc.1.0.20190509204259-4246269fb68e
     baseChannel: 'test'
     variables:
       port:

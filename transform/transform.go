@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"path"
 	"strconv"
 	"strings"
 
@@ -39,7 +38,6 @@ type protocolConfig struct {
 	port              int
 	contentPath       string
 	triggerSettings   func(s settings) map[string]interface{}
-	setTopic          func(s *settings, base, topic string)
 	handlerSettings   func(s settings) map[string]interface{}
 	serviceSettings   func(s settings) map[string]interface{}
 }
@@ -150,6 +148,10 @@ func getPort(url string) ([]chunk, bool) {
 func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDocument, schemes map[string]interface{}, flogo *app.Config) {
 	services := make([]*api.Service, 0, 8)
 	for i, server := range model.Servers {
+		baseChannel := strings.TrimSuffix(server.BaseChannel, "/")
+		if len(baseChannel) > 0 && !strings.HasPrefix(baseChannel, "/") {
+			baseChannel = "/" + baseChannel
+		}
 		if server.Protocol == p.name || server.Protocol == p.secure {
 			if server.Variables != nil {
 				for name, variable := range *server.Variables {
@@ -254,11 +256,12 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 				Ref:      p.trigger,
 				Settings: p.triggerSettings(s),
 			}
+
 			for name, channel := range model.Channels {
 				if strings.HasPrefix(name, "/") {
 					s.topic = name
 				} else {
-					p.setTopic(&s, server.BaseChannel, name)
+					s.topic = baseChannel + "/" + name
 				}
 				if channel.Subscribe != nil {
 					s.protocolInfo = nil
@@ -438,18 +441,11 @@ var configs = [...]protocolConfig{
 			}
 			return settings
 		},
-		setTopic: func(s *settings, base, topic string) {
-			if base != "" {
-				base = strings.TrimRight(strings.TrimLeft(base, "."), ".")
-				topic = strings.TrimRight(strings.TrimLeft(topic, "."), ".")
-				s.topic = fmt.Sprintf("%s.%s", base, topic)
-				return
-			}
-			s.topic = topic
-		},
 		handlerSettings: func(s settings) map[string]interface{} {
+			parts := strings.Split(s.topic[1:], "/")
+			topic := strings.Join(parts, ".")
 			settings := map[string]interface{}{
-				"topic": s.topic,
+				"topic": topic,
 			}
 			if s.protocolInfo != nil {
 				if value := s.protocolInfo["flogo-kafka"]; value != nil {
@@ -470,9 +466,11 @@ var configs = [...]protocolConfig{
 			return settings
 		},
 		serviceSettings: func(s settings) map[string]interface{} {
+			parts := strings.Split(s.topic[1:], "/")
+			topic := strings.Join(parts, ".")
 			settings := map[string]interface{}{
 				"brokerUrls": s.url,
-				"topic":      s.topic,
+				"topic":      topic,
 			}
 			if s.userPassword {
 				settings["user"] = s.user
@@ -505,24 +503,21 @@ var configs = [...]protocolConfig{
 			}
 			return settings
 		},
-		setTopic: func(s *settings, base, topic string) {
-			if base != "" {
-				s.topic = fmt.Sprintf("%s_%s", base, topic)
-				return
-			}
-			s.topic = topic
-		},
 		handlerSettings: func(s settings) map[string]interface{} {
+			parts := strings.Split(s.topic[1:], "/")
+			topic := strings.Join(parts, "_")
 			settings := map[string]interface{}{
-				"dest": s.topic,
+				"dest": topic,
 			}
 			return settings
 		},
 		serviceSettings: func(s settings) map[string]interface{} {
+			parts := strings.Split(s.topic[1:], "/")
+			topic := strings.Join(parts, "_")
 			settings := map[string]interface{}{
 				"id":   fmt.Sprintf("%s%s", s.name, s.topic),
 				"url":  s.url,
-				"dest": s.topic,
+				"dest": topic,
 			}
 			if s.userPassword {
 				settings["user"] = s.user
@@ -612,14 +607,12 @@ var configs = [...]protocolConfig{
 			}
 			return settings
 		},
-		setTopic: func(s *settings, base, topic string) {
-			s.topic = path.Join(base, topic)
-		},
 		handlerSettings: func(s settings) map[string]interface{} {
+			topic := s.topic[1:]
 			settings := map[string]interface{}{
-				"topic": s.topic,
+				"topic": topic,
 			}
-			chunks, hasVariables := parseURL(s.topic)
+			chunks, hasVariables := parseURL(topic)
 			if hasVariables {
 				translated := ""
 				for _, chunk := range chunks {
@@ -650,10 +643,11 @@ var configs = [...]protocolConfig{
 			return settings
 		},
 		serviceSettings: func(s settings) map[string]interface{} {
+			topic := s.topic[1:]
 			settings := map[string]interface{}{
 				"id":     fmt.Sprintf("%s%d_%s", s.name, s.serverIndex, s.topic),
 				"broker": s.url,
-				"topic":  s.topic,
+				"topic":  topic,
 			}
 			if s.userPassword {
 				settings["username"] = s.user
@@ -725,14 +719,10 @@ var configs = [...]protocolConfig{
 			}
 			return settings
 		},
-		setTopic: func(s *settings, base, topic string) {
-			if base != "" {
-				s.topic = fmt.Sprintf("%s_%s", base, topic)
-				return
-			}
-			s.topic = topic
-		},
 		handlerSettings: func(s settings) map[string]interface{} {
+			parts := strings.Split(s.topic[1:], "/")
+			topic := strings.Join(parts, "_")
+			_ = topic
 			settings := map[string]interface{}{}
 			return settings
 		},
@@ -764,13 +754,6 @@ var configs = [...]protocolConfig{
 				settings["keyFile"] = s.keyFile
 			}
 			return settings
-		},
-		setTopic: func(s *settings, base, topic string) {
-			topic = path.Join(base, topic)
-			if !strings.HasPrefix(topic, "/") {
-				topic = "/" + topic
-			}
-			s.topic = topic
 		},
 		handlerSettings: func(s settings) map[string]interface{} {
 			settings := map[string]interface{}{

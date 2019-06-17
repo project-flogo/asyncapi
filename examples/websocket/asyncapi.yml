@@ -13,7 +13,7 @@ servers:
     protocol: ws
     protocolVersion: '1.0.0'
 channels:
-  dummy:
+  /dummy:
     description: A message channel
     subscribe:
       summary: Get messages

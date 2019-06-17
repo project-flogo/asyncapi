@@ -15,7 +15,7 @@ servers:
     security:
       - creds: []
 channels:
-  message:
+  /message:
     description: A message channel
     subscribe:
       summary: Get messages
@@ -25,7 +25,7 @@ channels:
       summary: Send messages
       message:
         $ref: '#/components/messages/message'
-  dup:
+  /dup:
     description: A duplicate message channel
     subscribe:
       summary: Get messages

@@ -13,7 +13,7 @@ servers:
     protocol: eftl
     protocolVersion: '1.0.0'
 channels:
-  message:
+  /message:
     description: A message channel
     subscribe:
       summary: Get messages
@@ -23,7 +23,7 @@ channels:
       summary: Send messages
       message:
         $ref: '#/components/messages/message'
-  dup:
+  /dup:
     description: A duplicate message channel
     subscribe:
       summary: Get messages

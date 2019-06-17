@@ -19,7 +19,7 @@ servers:
     x-skip-verify: false
     x-use-systemcert: false
 channels:
-  message/{id}:
+  /message/{id}:
     description: A message channel
     subscribe:
       summary: Get messages
@@ -40,7 +40,7 @@ channels:
           qos: 1
           skipVerify: false
           useSystemCert: false
-  dup:
+  /dup:
     description: A duplicate message channel
     subscribe:
       summary: Get messages

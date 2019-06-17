@@ -13,7 +13,7 @@ servers:
     protocol: kafka
     protocolVersion: '1.0.0'
 channels:
-  message:
+  /message:
     description: A message channel
     subscribe:
       summary: Get messages
@@ -31,7 +31,7 @@ channels:
         flogo-kafka:
           partitions: "0"
           offset: 0
-  dup:
+  /dup:
     description: A duplicate message channel
     subscribe:
       summary: Get messages

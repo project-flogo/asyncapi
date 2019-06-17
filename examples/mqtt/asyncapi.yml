@@ -17,7 +17,7 @@ servers:
     x-keep-alive: 2
     x-auto-reconnect: true
 channels:
-  message/{id}:
+  /message/{id}:
     description: A message channel
     subscribe:
       summary: Get messages
@@ -36,7 +36,7 @@ channels:
           store: ':memory:'
           cleanSession: false
           qos: 1
-  dup:
+  /dup:
     description: A duplicate message channel
     subscribe:
       summary: Get messages

@@ -22,7 +22,7 @@ import (
 
 const (
 	// MicrogatewayVersion is the version of the microgateway to use
-	MicrogatewayVersion = "v0.0.0-20190617210902-b0f3295927c1"
+	MicrogatewayVersion = "v0.0.0-20190618181709-35451b2db55e"
 )
 
 // Transform converts an asyn api to a new representation

@@ -61,6 +61,8 @@ github.com/project-flogo/core v0.9.3-0.20190610180641-336db421a17a h1:AWdjAKP2Q+
 github.com/project-flogo/core v0.9.3-0.20190610180641-336db421a17a/go.mod h1:QGWi7TDLlhGUaYH3n/16ImCuulbEHGADYEXyrcHhX7U=
 github.com/project-flogo/microgateway v0.0.0-20190617210902-b0f3295927c1 h1:NFU/qjy4bPTe0fZAB3ujtve86dZTImXw4NrpTljQ9QY=
 github.com/project-flogo/microgateway v0.0.0-20190617210902-b0f3295927c1/go.mod h1:Qd1wToeA6KRtF1RLEneEPQD1z8t34SHbqbUWMkRUZVs=
+github.com/project-flogo/microgateway v0.0.0-20190618181709-35451b2db55e h1:Dtpx4YDq9m0h5sCetP513IuObsirMkNZjLUUnR4wczQ=
+github.com/project-flogo/microgateway v0.0.0-20190618181709-35451b2db55e/go.mod h1:Qd1wToeA6KRtF1RLEneEPQD1z8t34SHbqbUWMkRUZVs=
 github.com/spf13/cobra v0.0.3 h1:ZlrZ4XsMRm04Fr5pSFxBgfND2EBVa1nLpiy1stUsX/8=
 github.com/spf13/cobra v0.0.3/go.mod h1:1l0Ry5zgKvJasoi3XT1TypsSe7PqH0Sj9dhYf7v3XqQ=
 github.com/spf13/pflag v1.0.3 h1:zPAT6CGy6wXeQ7NtTnaTerfKOsV6V6F8agHXFiazDkg=

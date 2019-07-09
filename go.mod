@@ -7,6 +7,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/project-flogo/cli v0.9.0-rc.2
 	github.com/project-flogo/core v0.9.3-0.20190610180641-336db421a17a
-	github.com/project-flogo/microgateway v0.0.0-20190618181709-35451b2db55e
+	github.com/project-flogo/microgateway v0.0.0-20190708190753-c54f135979ec
 	github.com/spf13/cobra v0.0.3
 )

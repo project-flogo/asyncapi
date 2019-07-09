@@ -22,7 +22,7 @@ import (
 
 const (
 	// MicrogatewayVersion is the version of the microgateway to use
-	MicrogatewayVersion = "v0.0.0-20190618181709-35451b2db55e"
+	MicrogatewayVersion = "v0.0.0-20190708190753-c54f135979ec"
 )
 
 // Transform converts an asyn api to a new representation
@@ -538,8 +538,8 @@ var configs = [...]protocolConfig{
 		activity:        "github.com/project-flogo/eftl/activity",
 		triggerImport:   "github.com/project-flogo/eftl@%s:/trigger",
 		activityImport:  "github.com/project-flogo/eftl@%s:/activity",
-		triggerVersion:  "v0.0.0-20190318194200-d6dc627012e5",
-		activityVersion: "v0.0.0-20190318194200-d6dc627012e5",
+		triggerVersion:  "v0.0.0-20190709194620-9c397d37ddf5",
+		activityVersion: "v0.0.0-20190709194620-9c397d37ddf5",
 		port:            9097,
 		contentPath:     "content",
 		triggerSettings: func(s settings) map[string]interface{} {
@@ -763,7 +763,7 @@ var configs = [...]protocolConfig{
 		secure:         "wss",
 		trigger:        "github.com/project-flogo/websocket/trigger/wsclient",
 		triggerImport:  "github.com/project-flogo/websocket@%s:/trigger/wsclient",
-		triggerVersion: "v0.0.0-20190201184711-2efafcb15730",
+		triggerVersion: "v0.0.0-20190708195807-1d89e706e274",
 		port:           9099,
 		contentPath:    "content",
 		triggerSettings: func(s settings) map[string]interface{} {

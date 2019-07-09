@@ -44,6 +44,7 @@ type protocolConfig struct {
 	triggerVersion, activityVersion string
 	port                            int
 	contentPath                     string
+	paramsPath                      string
 	triggerSettings                 func(s settings) map[string]interface{}
 	handlerSettings                 func(s settings) map[string]interface{}
 	serviceSettings                 func(s settings) map[string]interface{}
@@ -62,6 +63,7 @@ type settings struct {
 	certFile     string
 	keyFile      string
 	extensions   map[string]json.RawMessage
+	parameters   []*models.Parameter
 	topic        string
 	protocolInfo map[string]interface{}
 }
@@ -165,7 +167,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 		flogo.Imports = append(flogo.Imports, path)
 	}
 
-	services := make([]*api.Service, 0, 8)
+	services, triggers := make([]*api.Service, 0, 8), make([]*trigger.Config, 0, 8)
 	for i, server := range model.Servers {
 		baseChannel := strings.TrimSuffix(server.BaseChannel, "/")
 		if len(baseChannel) > 0 && !strings.HasPrefix(baseChannel, "/") {
@@ -297,6 +299,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 			}
 
 			for name, channel := range model.Channels {
+				s.parameters = channel.Parameters
 				if strings.HasPrefix(name, "/") {
 					s.topic = name
 				} else {
@@ -328,6 +331,9 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 							"message": fmt.Sprintf("=$.%s", p.contentPath),
 						},
 					}
+					if p.paramsPath != "" {
+						actionConfig.Input["params"] = fmt.Sprintf("=$.%s", p.paramsPath)
+					}
 					handler.Actions = append(handler.Actions, &actionConfig)
 					trig.Handlers = append(trig.Handlers, &handler)
 				}
@@ -348,11 +354,11 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 					services = append(services, service)
 				}
 			}
-			flogo.Triggers = append(flogo.Triggers, &trig)
+			triggers = append(triggers, &trig)
 		}
 	}
 
-	if len(flogo.Triggers) > 0 {
+	if len(triggers) > 0 {
 		gateway := &api.Microgateway{
 			Name: p.name,
 		}
@@ -402,6 +408,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 			Data: raw,
 		}
 		flogo.Resources = append(flogo.Resources, res)
+		flogo.Triggers = append(flogo.Triggers, triggers...)
 	}
 
 	if len(services) > 0 {
@@ -593,6 +600,7 @@ var configs = [...]protocolConfig{
 		activityVersion: "v0.0.0-20190523234742-2d7b115b701a",
 		port:            9098,
 		contentPath:     "message",
+		paramsPath:      "topicParams",
 		triggerSettings: func(s settings) map[string]interface{} {
 			settings := map[string]interface{}{
 				"id":     fmt.Sprintf("%s%d", s.name, s.serverIndex),
@@ -676,7 +684,29 @@ var configs = [...]protocolConfig{
 					if chunk.value != "" {
 						translated += chunk.value
 					} else {
-						translated += "+"
+						var parameter *models.Parameter
+						for _, value := range s.parameters {
+							if value.Name == chunk.name {
+								parameter = value
+								break
+							}
+						}
+						if parameter != nil {
+							if value := parameter.Extensions["x-multilevel"]; len(value) > 0 {
+								var multilevel bool
+								err := json.Unmarshal(value, &multilevel)
+								if err != nil {
+									panic(err)
+								}
+								if multilevel {
+									translated += "#" + chunk.name
+								} else {
+									translated += "+" + chunk.name
+								}
+							}
+						} else {
+							translated += "+" + chunk.name
+						}
 					}
 				}
 				settings["topic"] = translated
@@ -705,6 +735,40 @@ var configs = [...]protocolConfig{
 				"id":     fmt.Sprintf("%s%d_%s", s.name, s.serverIndex, s.topic),
 				"broker": s.url,
 				"topic":  topic,
+			}
+			chunks, hasVariables := parseURL(topic)
+			if hasVariables {
+				translated := ""
+				for _, chunk := range chunks {
+					if chunk.value != "" {
+						translated += chunk.value
+					} else {
+						var parameter *models.Parameter
+						for _, value := range s.parameters {
+							if value.Name == chunk.name {
+								parameter = value
+								break
+							}
+						}
+						if parameter != nil {
+							if value := parameter.Extensions["x-multilevel"]; len(value) > 0 {
+								var multilevel bool
+								err := json.Unmarshal(value, &multilevel)
+								if err != nil {
+									panic(err)
+								}
+								if multilevel {
+									translated += "#" + chunk.name
+								} else {
+									translated += "+" + chunk.name
+								}
+							}
+						} else {
+							translated += "+" + chunk.name
+						}
+					}
+				}
+				settings["topic"] = translated
 			}
 			if s.userPassword {
 				settings["username"] = s.user

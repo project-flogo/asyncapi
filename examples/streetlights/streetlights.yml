@@ -18,6 +18,10 @@ servers:
     protocol: mqtt
     description: Test broker
     baseChannel: smartylighting/streetlights/1/0
+    x-store: ':memory:'
+    x-clean-session: false
+    x-keep-alive: 2
+    x-auto-reconnect: true
     variables:
       port:
         description: Secure connection (TLS) is available through port 8883.

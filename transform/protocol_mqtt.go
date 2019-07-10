@@ -161,29 +161,7 @@ var protocolMQTT = protocolConfig{
 				if chunk.value != "" {
 					translated += chunk.value
 				} else {
-					var parameter *models.Parameter
-					for _, value := range s.parameters {
-						if value.Name == chunk.name {
-							parameter = value
-							break
-						}
-					}
-					if parameter != nil {
-						if value := parameter.Extensions["x-multilevel"]; len(value) > 0 {
-							var multilevel bool
-							err := json.Unmarshal(value, &multilevel)
-							if err != nil {
-								panic(err)
-							}
-							if multilevel {
-								translated += "#" + chunk.name
-							} else {
-								translated += "+" + chunk.name
-							}
-						}
-					} else {
-						translated += "+" + chunk.name
-					}
+					translated += ":" + chunk.name
 				}
 			}
 			settings["topic"] = translated

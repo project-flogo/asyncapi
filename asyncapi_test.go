@@ -114,6 +114,7 @@ func TestAsyncApi(t *testing.T) {
 		"examples/mqtt/asyncapi_secure.yml",
 		"examples/websocket/asyncapi.yml",
 		"examples/websocket/asyncapi_secure.yml",
+		"examples/streetlights/streetlights.yml",
 	}
 	for _, file := range files {
 		testAPI(file)

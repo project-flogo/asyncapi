@@ -6,6 +6,8 @@ Currently this tool accepts below arguments.
 Usage of asyncapi:
   -type string
         conversion type like flogoapiapp or flogodescriptor (default "flogoapiapp")
+  -role string
+        server or client; defaults to server
   -input string
         input async api file (default "asyncapi.yml")
   -output string

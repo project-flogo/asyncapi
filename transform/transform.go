@@ -26,12 +26,18 @@ const (
 )
 
 // Transform converts an asyn api to a new representation
-func Transform(input, output, conversionType string) {
+func Transform(input, output, conversionType, role string) {
+	switch role {
+	case "server":
+	case "client":
+	default:
+		panic("invalid role")
+	}
 	switch conversionType {
 	case "flogoapiapp":
-		ToAPI(input, output)
+		ToAPI(input, output, role)
 	case "flogodescriptor":
-		ToJSON(input, output)
+		ToJSON(input, output, role)
 	default:
 		panic("invalid type")
 	}
@@ -162,7 +168,7 @@ func getPort(url string) ([]chunk, bool) {
 	return chunks, hasVariable
 }
 
-func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDocument, schemes map[string]interface{}, flogo *app.Config) {
+func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDocument, schemes map[string]interface{}, flogo *app.Config, role string) {
 	addImport := func(path, version string) {
 		if version != "" {
 			path = fmt.Sprintf(path, version)
@@ -313,10 +319,14 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 				} else {
 					s.topic = baseChannel + "/" + name
 				}
-				if channel.Subscribe != nil {
+				subscribe, publish := channel.Subscribe, channel.Publish
+				if role == "client" {
+					subscribe, publish = publish, subscribe
+				}
+				if subscribe != nil {
 					s.protocolInfo = nil
-					if len(channel.Subscribe.ProtocolInfo) > 0 {
-						err := json.Unmarshal(channel.Subscribe.ProtocolInfo, &s.protocolInfo)
+					if len(subscribe.ProtocolInfo) > 0 {
+						err := json.Unmarshal(subscribe.ProtocolInfo, &s.protocolInfo)
 						if err != nil {
 							panic(err)
 						}
@@ -345,10 +355,10 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 					handler.Actions = append(handler.Actions, &actionConfig)
 					trig.Handlers = append(trig.Handlers, &handler)
 				}
-				if channel.Publish != nil && p.activity != "" {
+				if publish != nil && p.activity != "" {
 					s.protocolInfo = nil
-					if len(channel.Publish.ProtocolInfo) > 0 {
-						err := json.Unmarshal(channel.Publish.ProtocolInfo, &s.protocolInfo)
+					if len(publish.ProtocolInfo) > 0 {
+						err := json.Unmarshal(publish.ProtocolInfo, &s.protocolInfo)
 						if err != nil {
 							panic(err)
 						}
@@ -480,7 +490,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 	}
 }
 
-func convert(input string) (*bytes.Buffer, *app.Config) {
+func convert(input, role string) (*bytes.Buffer, *app.Config) {
 	document, err := ioutil.ReadFile(input)
 	if err != nil {
 		panic(err)
@@ -516,15 +526,15 @@ func convert(input string) (*bytes.Buffer, *app.Config) {
 	fmt.Fprintf(&support, "package main\n")
 	fmt.Fprintf(&support, "import \"github.com/nareshkumarthota/flogocomponents/activity/methodinvoker\"\n")
 	for _, config := range configs {
-		config.protocol(&support, &model, schemes, &flogo)
+		config.protocol(&support, &model, schemes, &flogo, role)
 	}
 
 	return &support, &flogo
 }
 
 // ToAPI converts an asyn api to a API flogo application
-func ToAPI(input, output string) {
-	support, flogo := convert(input)
+func ToAPI(input, output, role string) {
+	support, flogo := convert(input, role)
 	err := ioutil.WriteFile(output+"/support.go", support.Bytes(), 0644)
 	if err != nil {
 		panic(err)
@@ -533,8 +543,8 @@ func ToAPI(input, output string) {
 }
 
 // ToJSON converts an async api to a JSON flogo application
-func ToJSON(input, output string) {
-	support, flogo := convert(input)
+func ToJSON(input, output, role string) {
+	support, flogo := convert(input, role)
 	err := ioutil.WriteFile(output+"/support.go", support.Bytes(), 0644)
 	if err != nil {
 		panic(err)

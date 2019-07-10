@@ -8,7 +8,7 @@ import (
 )
 
 func TestAsyncApi(t *testing.T) {
-	testAPI := func(file string) {
+	testAPI := func(file, role string) {
 		t.Log(file)
 		current, err := os.Getwd()
 		if err != nil {
@@ -26,7 +26,7 @@ func TestAsyncApi(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Log(tmp)
-		cmd := exec.Command("./asyncapi", "-input", file, "-type", "flogoapiapp", "-output", tmp)
+		cmd := exec.Command("./asyncapi", "-input", file, "-type", "flogoapiapp", "-role", role, "-output", tmp)
 		err = cmd.Run()
 		if err != nil {
 			t.Fatal(err)
@@ -45,7 +45,7 @@ func TestAsyncApi(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	testJSON := func(file string) {
+	testJSON := func(file, role string) {
 		t.Log(file)
 		current, err := os.Getwd()
 		if err != nil {
@@ -63,7 +63,7 @@ func TestAsyncApi(t *testing.T) {
 			t.Fatal(err)
 		}
 		t.Log(tmp)
-		cmd := exec.Command("./asyncapi", "-input", file, "-type", "flogodescriptor", "-output", tmp)
+		cmd := exec.Command("./asyncapi", "-input", file, "-type", "flogodescriptor", "-role", role, "-output", tmp)
 		err = cmd.Run()
 		if err != nil {
 			t.Fatal(err)
@@ -117,7 +117,9 @@ func TestAsyncApi(t *testing.T) {
 		"examples/streetlights/streetlights.yml",
 	}
 	for _, file := range files {
-		testAPI(file)
-		testJSON(file)
+		testAPI(file, "server")
+		testJSON(file, "server")
+		testAPI(file, "client")
+		testJSON(file, "client")
 	}
 }

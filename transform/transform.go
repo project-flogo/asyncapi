@@ -26,12 +26,18 @@ const (
 )
 
 // Transform converts an asyn api to a new representation
-func Transform(input, output, conversionType string) {
+func Transform(input, output, conversionType, role string) {
+	switch role {
+	case "server":
+	case "client":
+	default:
+		panic("invalid role")
+	}
 	switch conversionType {
 	case "flogoapiapp":
-		ToAPI(input, output)
+		ToAPI(input, output, role)
 	case "flogodescriptor":
-		ToJSON(input, output)
+		ToJSON(input, output, role)
 	default:
 		panic("invalid type")
 	}
@@ -44,9 +50,18 @@ type protocolConfig struct {
 	triggerVersion, activityVersion string
 	port                            int
 	contentPath                     string
+	paramsPath                      string
 	triggerSettings                 func(s settings) map[string]interface{}
 	handlerSettings                 func(s settings) map[string]interface{}
 	serviceSettings                 func(s settings) map[string]interface{}
+}
+
+var configs = [...]protocolConfig{
+	protocolEFTL,
+	protocolHTTP,
+	protocolKafka,
+	protocolMQTT,
+	protocolWebsocket,
 }
 
 type settings struct {
@@ -62,6 +77,7 @@ type settings struct {
 	certFile     string
 	keyFile      string
 	extensions   map[string]json.RawMessage
+	parameters   []*models.Parameter
 	topic        string
 	protocolInfo map[string]interface{}
 }
@@ -152,7 +168,7 @@ func getPort(url string) ([]chunk, bool) {
 	return chunks, hasVariable
 }
 
-func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDocument, schemes map[string]interface{}, flogo *app.Config) {
+func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDocument, schemes map[string]interface{}, flogo *app.Config, role string) {
 	addImport := func(path, version string) {
 		if version != "" {
 			path = fmt.Sprintf(path, version)
@@ -165,7 +181,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 		flogo.Imports = append(flogo.Imports, path)
 	}
 
-	services := make([]*api.Service, 0, 8)
+	services, triggers := make([]*api.Service, 0, 8), make([]*trigger.Config, 0, 8)
 	for i, server := range model.Servers {
 		baseChannel := strings.TrimSuffix(server.BaseChannel, "/")
 		if len(baseChannel) > 0 && !strings.HasPrefix(baseChannel, "/") {
@@ -297,15 +313,20 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 			}
 
 			for name, channel := range model.Channels {
+				s.parameters = channel.Parameters
 				if strings.HasPrefix(name, "/") {
 					s.topic = name
 				} else {
 					s.topic = baseChannel + "/" + name
 				}
-				if channel.Subscribe != nil {
+				subscribe, publish := channel.Subscribe, channel.Publish
+				if role == "client" {
+					subscribe, publish = publish, subscribe
+				}
+				if subscribe != nil {
 					s.protocolInfo = nil
-					if len(channel.Subscribe.ProtocolInfo) > 0 {
-						err := json.Unmarshal(channel.Subscribe.ProtocolInfo, &s.protocolInfo)
+					if len(subscribe.ProtocolInfo) > 0 {
+						err := json.Unmarshal(subscribe.ProtocolInfo, &s.protocolInfo)
 						if err != nil {
 							panic(err)
 						}
@@ -328,13 +349,16 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 							"message": fmt.Sprintf("=$.%s", p.contentPath),
 						},
 					}
+					if p.paramsPath != "" {
+						actionConfig.Input["params"] = fmt.Sprintf("=$.%s", p.paramsPath)
+					}
 					handler.Actions = append(handler.Actions, &actionConfig)
 					trig.Handlers = append(trig.Handlers, &handler)
 				}
-				if channel.Publish != nil && p.activity != "" {
+				if publish != nil && p.activity != "" {
 					s.protocolInfo = nil
-					if len(channel.Publish.ProtocolInfo) > 0 {
-						err := json.Unmarshal(channel.Publish.ProtocolInfo, &s.protocolInfo)
+					if len(publish.ProtocolInfo) > 0 {
+						err := json.Unmarshal(publish.ProtocolInfo, &s.protocolInfo)
 						if err != nil {
 							panic(err)
 						}
@@ -348,11 +372,11 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 					services = append(services, service)
 				}
 			}
-			flogo.Triggers = append(flogo.Triggers, &trig)
+			triggers = append(triggers, &trig)
 		}
 	}
 
-	if len(flogo.Triggers) > 0 {
+	if len(triggers) > 0 {
 		gateway := &api.Microgateway{
 			Name: p.name,
 		}
@@ -402,6 +426,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 			Data: raw,
 		}
 		flogo.Resources = append(flogo.Resources, res)
+		flogo.Triggers = append(flogo.Triggers, triggers...)
 	}
 
 	if len(services) > 0 {
@@ -465,466 +490,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 	}
 }
 
-var configs = [...]protocolConfig{
-	{
-		name:            "kafka",
-		secure:          "kafka-secure",
-		trigger:         "github.com/project-flogo/contrib/trigger/kafka",
-		activity:        "github.com/project-flogo/contrib/activity/kafka",
-		triggerImport:   "github.com/project-flogo/contrib/trigger/kafka@%s",
-		activityImport:  "github.com/project-flogo/contrib/activity/kafka@%s",
-		triggerVersion:  "v0.9.1-0.20190603184501-d845e1d612f8",
-		activityVersion: "v0.9.1-0.20190516180541-534215f1b7ac",
-		port:            9096,
-		contentPath:     "message",
-		triggerSettings: func(s settings) map[string]interface{} {
-			settings := map[string]interface{}{
-				"brokerUrls": s.url,
-			}
-			if s.userPassword {
-				settings["user"] = s.user
-				settings["password"] = s.password
-			}
-			if s.secure {
-				settings["trustStore"] = s.trustStore
-			}
-			return settings
-		},
-		handlerSettings: func(s settings) map[string]interface{} {
-			parts := strings.Split(s.topic[1:], "/")
-			topic := strings.Join(parts, ".")
-			settings := map[string]interface{}{
-				"topic": topic,
-			}
-			if s.protocolInfo != nil {
-				if value := s.protocolInfo["flogo-kafka"]; value != nil {
-					if flogo, ok := value.(map[string]interface{}); ok {
-						if value := flogo["partitions"]; value != nil {
-							if partitions, ok := value.(string); ok {
-								settings["partitions"] = partitions
-							}
-						}
-						if value := flogo["offset"]; value != nil {
-							if offset, ok := value.(float64); ok {
-								settings["offset"] = int64(offset)
-							}
-						}
-					}
-				}
-			}
-			return settings
-		},
-		serviceSettings: func(s settings) map[string]interface{} {
-			parts := strings.Split(s.topic[1:], "/")
-			topic := strings.Join(parts, ".")
-			settings := map[string]interface{}{
-				"brokerUrls": s.url,
-				"topic":      topic,
-			}
-			if s.userPassword {
-				settings["user"] = s.user
-				settings["password"] = s.password
-			}
-			if s.secure {
-				settings["trustStore"] = s.trustStore
-			}
-			return settings
-		},
-	},
-	{
-		name:            "eftl",
-		secure:          "eftl-secure",
-		trigger:         "github.com/project-flogo/eftl/trigger",
-		activity:        "github.com/project-flogo/eftl/activity",
-		triggerImport:   "github.com/project-flogo/eftl@%s:/trigger",
-		activityImport:  "github.com/project-flogo/eftl@%s:/activity",
-		triggerVersion:  "v0.0.0-20190709194620-9c397d37ddf5",
-		activityVersion: "v0.0.0-20190709194620-9c397d37ddf5",
-		port:            9097,
-		contentPath:     "content",
-		triggerSettings: func(s settings) map[string]interface{} {
-			settings := map[string]interface{}{
-				"id":  fmt.Sprintf("%s%d", s.name, s.serverIndex),
-				"url": s.url,
-			}
-			if s.userPassword {
-				settings["user"] = s.user
-				settings["password"] = s.password
-			}
-			if s.secure {
-				settings["ca"] = s.trustStore
-			}
-			return settings
-		},
-		handlerSettings: func(s settings) map[string]interface{} {
-			parts := strings.Split(s.topic[1:], "/")
-			topic := strings.Join(parts, "_")
-			settings := map[string]interface{}{
-				"dest": topic,
-			}
-			return settings
-		},
-		serviceSettings: func(s settings) map[string]interface{} {
-			parts := strings.Split(s.topic[1:], "/")
-			topic := strings.Join(parts, "_")
-			settings := map[string]interface{}{
-				"id":   fmt.Sprintf("%s%s", s.name, s.topic),
-				"url":  s.url,
-				"dest": topic,
-			}
-			if s.userPassword {
-				settings["user"] = s.user
-				settings["password"] = s.password
-			}
-			if s.secure {
-				settings["ca"] = s.trustStore
-			}
-			return settings
-		},
-	},
-	{
-		name:            "mqtt",
-		secure:          "secure-mqtt",
-		trigger:         "github.com/project-flogo/edge-contrib/trigger/mqtt",
-		activity:        "github.com/project-flogo/edge-contrib/activity/mqtt",
-		triggerImport:   "github.com/project-flogo/edge-contrib/trigger/mqtt@%s",
-		activityImport:  "github.com/project-flogo/edge-contrib/activity/mqtt@%s",
-		triggerVersion:  "v0.0.0-20190523234742-2d7b115b701a",
-		activityVersion: "v0.0.0-20190523234742-2d7b115b701a",
-		port:            9098,
-		contentPath:     "message",
-		triggerSettings: func(s settings) map[string]interface{} {
-			settings := map[string]interface{}{
-				"id":     fmt.Sprintf("%s%d", s.name, s.serverIndex),
-				"broker": s.url,
-			}
-			if s.userPassword {
-				settings["username"] = s.user
-				settings["password"] = s.password
-			}
-			if value := s.extensions["x-store"]; len(value) > 0 {
-				var store string
-				err := json.Unmarshal(value, &store)
-				if err != nil {
-					panic(err)
-				}
-				if store != "" {
-					settings["store"] = store
-				}
-			}
-			if value := s.extensions["x-clean-session"]; len(value) > 0 {
-				var cleanSession bool
-				err := json.Unmarshal(value, &cleanSession)
-				if err != nil {
-					panic(err)
-				}
-				settings["cleanSession"] = cleanSession
-			}
-			if value := s.extensions["x-keep-alive"]; len(value) > 0 {
-				var keepAlive float64
-				err := json.Unmarshal(value, &keepAlive)
-				if err != nil {
-					panic(err)
-				}
-				settings["keepAlive"] = keepAlive
-			}
-			if value := s.extensions["x-auto-reconnect"]; len(value) > 0 {
-				var autoReconnect bool
-				err := json.Unmarshal(value, &autoReconnect)
-				if err != nil {
-					panic(err)
-				}
-				settings["autoReconnect"] = autoReconnect
-			}
-			if s.secure {
-				sslConfig := map[string]interface{}{
-					"certFile": s.certFile,
-					"keyFile":  s.keyFile,
-				}
-				skipVerify := true
-				if value := s.extensions["x-skip-verify"]; len(value) > 0 {
-					err := json.Unmarshal(value, &skipVerify)
-					if err != nil {
-						panic(err)
-					}
-					sslConfig["skipVerify"] = skipVerify
-				}
-				useSystemCert := true
-				if value := s.extensions["x-use-systemcert"]; !skipVerify && len(value) > 0 {
-					err := json.Unmarshal(value, &useSystemCert)
-					if err != nil {
-						panic(err)
-					}
-					sslConfig["useSystemCert"] = useSystemCert
-				}
-				if !useSystemCert {
-					sslConfig["caFile"] = s.trustStore
-				}
-				settings["sslConfig"] = sslConfig
-			}
-			return settings
-		},
-		handlerSettings: func(s settings) map[string]interface{} {
-			topic := s.topic[1:]
-			settings := map[string]interface{}{
-				"topic": topic,
-			}
-			chunks, hasVariables := parseURL(topic)
-			if hasVariables {
-				translated := ""
-				for _, chunk := range chunks {
-					if chunk.value != "" {
-						translated += chunk.value
-					} else {
-						translated += "+"
-					}
-				}
-				settings["topic"] = translated
-			}
-			if s.protocolInfo != nil {
-				if value := s.protocolInfo["flogo-mqtt"]; value != nil {
-					if mqtt, ok := value.(map[string]interface{}); ok {
-						if value := mqtt["replyTopic"]; value != nil {
-							if replyTopic, ok := value.(string); ok {
-								settings["replyTopic"] = replyTopic
-							}
-						}
-						if value := mqtt["qos"]; value != nil {
-							if qos, ok := value.(float64); ok {
-								settings["qos"] = int64(qos)
-							}
-						}
-					}
-				}
-			}
-			return settings
-		},
-		serviceSettings: func(s settings) map[string]interface{} {
-			topic := s.topic[1:]
-			settings := map[string]interface{}{
-				"id":     fmt.Sprintf("%s%d_%s", s.name, s.serverIndex, s.topic),
-				"broker": s.url,
-				"topic":  topic,
-			}
-			if s.userPassword {
-				settings["username"] = s.user
-				settings["password"] = s.password
-			}
-			if s.protocolInfo != nil {
-				if value := s.protocolInfo["flogo-mqtt"]; value != nil {
-					if mqtt, ok := value.(map[string]interface{}); ok {
-						if value := mqtt["store"]; value != nil {
-							if store, ok := value.(string); ok {
-								settings["store"] = store
-							}
-						}
-						if value := mqtt["cleanSession"]; value != nil {
-							if cleanSession, ok := value.(bool); ok {
-								settings["cleanSession"] = cleanSession
-							}
-						}
-						if value := mqtt["qos"]; value != nil {
-							if qos, ok := value.(float64); ok {
-								settings["qos"] = int64(qos)
-							}
-						}
-						if s.secure {
-							sslConfig := map[string]interface{}{
-								"certFile": s.certFile,
-								"keyFile":  s.keyFile,
-							}
-							skipVerify := true
-							if value := mqtt["skipVerify"]; value != nil {
-								if skipVerifyValue, ok := value.(bool); ok {
-									settings["skipVerify"] = skipVerifyValue
-									skipVerify = skipVerifyValue
-								}
-							}
-							useSystemCert := true
-							if value := mqtt["useSystemCert"]; !skipVerify && value != nil {
-								if useSystemCertValue, ok := value.(bool); ok {
-									settings["useSystemCert"] = useSystemCertValue
-									useSystemCert = useSystemCertValue
-								}
-							}
-							if !useSystemCert {
-								sslConfig["caFile"] = s.trustStore
-							}
-							settings["sslConfig"] = sslConfig
-						}
-					}
-				}
-			}
-			return settings
-		},
-	},
-	{
-		name:           "ws",
-		secure:         "wss",
-		trigger:        "github.com/project-flogo/websocket/trigger/wsclient",
-		triggerImport:  "github.com/project-flogo/websocket@%s:/trigger/wsclient",
-		triggerVersion: "v0.0.0-20190708195807-1d89e706e274",
-		port:           9099,
-		contentPath:    "content",
-		triggerSettings: func(s settings) map[string]interface{} {
-			settings := map[string]interface{}{
-				"url": s.url,
-			}
-			if s.userPassword {
-				// not supported
-			}
-			if s.secure {
-				// supproted
-			}
-			return settings
-		},
-		handlerSettings: func(s settings) map[string]interface{} {
-			parts := strings.Split(s.topic[1:], "/")
-			topic := strings.Join(parts, "_")
-			_ = topic
-			settings := map[string]interface{}{}
-			return settings
-		},
-	},
-	{
-		name:            "http",
-		secure:          "https",
-		trigger:         "github.com/project-flogo/contrib/trigger/rest",
-		activity:        "github.com/project-flogo/contrib/activity/rest",
-		triggerImport:   "github.com/project-flogo/contrib/trigger/rest@%s",
-		activityImport:  "github.com/project-flogo/contrib/activity/rest@%s",
-		triggerVersion:  "v0.9.0-rc.1.0.20190509204259-4246269fb68e",
-		activityVersion: "v0.9.0-rc.1.0.20190509204259-4246269fb68e",
-		port:            9100,
-		contentPath:     "content",
-		triggerSettings: func(s settings) map[string]interface{} {
-			port := "80"
-			if s.secure {
-				port = "443"
-			}
-			if s.urlPort != "" {
-				port = s.urlPort
-			}
-			settings := map[string]interface{}{
-				"port": port,
-			}
-			if s.userPassword {
-				// not supported
-			}
-			if s.secure {
-				settings["enableTLS"] = true
-				settings["certFile"] = s.certFile
-				settings["keyFile"] = s.keyFile
-			}
-			return settings
-		},
-		handlerSettings: func(s settings) map[string]interface{} {
-			settings := map[string]interface{}{
-				"path": s.topic,
-			}
-			chunks, hasVariables := parseURL(s.topic)
-			if hasVariables {
-				translated := ""
-				for _, chunk := range chunks {
-					if chunk.value != "" {
-						translated += chunk.value
-					} else {
-						translated += ":" + chunk.name
-					}
-				}
-				settings["path"] = translated
-			}
-
-			if s.protocolInfo != nil {
-				if value := s.protocolInfo["flogo-http"]; value != nil {
-					if http, ok := value.(map[string]interface{}); ok {
-						if value := http["method"]; value != nil {
-							if method, ok := value.(string); ok {
-								settings["method"] = method
-							}
-						}
-					}
-				}
-			}
-			return settings
-		},
-		serviceSettings: func(s settings) map[string]interface{} {
-			path := s.topic
-			chunks, hasVariables := parseURL(s.topic)
-			if hasVariables {
-				translated := ""
-				for _, chunk := range chunks {
-					if chunk.value != "" {
-						translated += chunk.value
-					} else {
-						translated += ":" + chunk.name
-					}
-				}
-				path = translated
-			}
-			settings := map[string]interface{}{
-				"uri": fmt.Sprintf("=string.concat(%s, '%s')", s.url[1:], path),
-			}
-
-			if s.userPassword {
-				// not supported
-			}
-			if s.protocolInfo != nil {
-				if value := s.protocolInfo["flogo-http"]; value != nil {
-					if http, ok := value.(map[string]interface{}); ok {
-						if value := http["method"]; value != nil {
-							if method, ok := value.(string); ok {
-								settings["method"] = method
-							}
-						}
-						if value := http["headers"]; value != nil {
-							if headers, ok := value.(map[string]string); ok {
-								settings["headers"] = headers
-							}
-						}
-						if value := http["proxy"]; value != nil {
-							if proxy, ok := value.(string); ok {
-								settings["proxy"] = proxy
-							}
-						}
-						if value := http["timeout"]; value != nil {
-							if timeout, ok := value.(float64); ok {
-								settings["timeout"] = int64(timeout)
-							}
-						}
-						if s.secure {
-							sslConfig := map[string]interface{}{
-								"certFile": s.certFile,
-								"keyFile":  s.keyFile,
-							}
-							skipVerify := true
-							if value := http["skipVerify"]; value != nil {
-								if skipVerifyValue, ok := value.(bool); ok {
-									settings["skipVerify"] = skipVerifyValue
-									skipVerify = skipVerifyValue
-								}
-							}
-							useSystemCert := true
-							if value := http["useSystemCert"]; !skipVerify && value != nil {
-								if useSystemCertValue, ok := value.(bool); ok {
-									settings["useSystemCert"] = useSystemCertValue
-									useSystemCert = useSystemCertValue
-								}
-							}
-							if !useSystemCert {
-								sslConfig["caFile"] = s.trustStore
-							}
-							settings["sslConfig"] = sslConfig
-						}
-					}
-				}
-			}
-			return settings
-		},
-	},
-}
-
-func convert(input string) (*bytes.Buffer, *app.Config) {
+func convert(input, role string) (*bytes.Buffer, *app.Config) {
 	document, err := ioutil.ReadFile(input)
 	if err != nil {
 		panic(err)
@@ -960,15 +526,15 @@ func convert(input string) (*bytes.Buffer, *app.Config) {
 	fmt.Fprintf(&support, "package main\n")
 	fmt.Fprintf(&support, "import \"github.com/nareshkumarthota/flogocomponents/activity/methodinvoker\"\n")
 	for _, config := range configs {
-		config.protocol(&support, &model, schemes, &flogo)
+		config.protocol(&support, &model, schemes, &flogo, role)
 	}
 
 	return &support, &flogo
 }
 
 // ToAPI converts an asyn api to a API flogo application
-func ToAPI(input, output string) {
-	support, flogo := convert(input)
+func ToAPI(input, output, role string) {
+	support, flogo := convert(input, role)
 	err := ioutil.WriteFile(output+"/support.go", support.Bytes(), 0644)
 	if err != nil {
 		panic(err)
@@ -977,8 +543,8 @@ func ToAPI(input, output string) {
 }
 
 // ToJSON converts an async api to a JSON flogo application
-func ToJSON(input, output string) {
-	support, flogo := convert(input)
+func ToJSON(input, output, role string) {
+	support, flogo := convert(input, role)
 	err := ioutil.WriteFile(output+"/support.go", support.Bytes(), 0644)
 	if err != nil {
 		panic(err)

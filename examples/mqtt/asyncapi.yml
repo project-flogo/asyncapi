@@ -12,8 +12,8 @@ servers:
     description: Development server
     protocol: mqtt
     protocolVersion: '1.0.0'
-    x-trigger-version: v0.0.0-20190711191428-fbc76afcd12f
-    x-activity-version: v0.0.0-20190711191428-fbc76afcd12f
+    x-trigger-version: v0.0.0-20190711193600-08aa43fa8ef4
+    x-activity-version: v0.0.0-20190711193600-08aa43fa8ef4
     x-store: ':memory:'
     x-clean-session: false
     x-keep-alive: 2

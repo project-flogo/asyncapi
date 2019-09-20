@@ -304,7 +304,11 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncAPI20
 			if model.Channels != nil {
 				for name, channel := range model.Channels.AdditionalProperties {
 					s.parameters = channel.Parameters
-					s.topic = name
+					if strings.HasPrefix(name, "/") {
+						s.topic = name
+					} else {
+						s.topic = "/" + name
+					}
 					subscribe, publish := channel.Subscribe, channel.Publish
 					if role == "client" {
 						subscribe, publish = publish, subscribe
@@ -313,10 +317,12 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncAPI20
 						if len(subscribe.Traits) > 0 {
 							s.protocolInfo = make(map[string]interface{})
 							for _, trait := range subscribe.Traits {
-								if value, ok := trait.(*models.OperationTrait); ok {
-									if bindings := value.Bindings; bindings != nil {
-										for key, value := range bindings.AdditionalProperties {
-											s.protocolInfo[key] = value
+								if value, ok := trait.(map[string]interface{}); ok {
+									if value, ok := value["bindings"]; ok {
+										if bindings, ok := value.(map[string]interface{}); ok {
+											for key, value := range bindings {
+												s.protocolInfo[key] = value
+											}
 										}
 									}
 								}
@@ -350,10 +356,12 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncAPI20
 						if len(publish.Traits) > 0 {
 							s.protocolInfo = make(map[string]interface{})
 							for _, trait := range publish.Traits {
-								if value, ok := trait.(*models.OperationTrait); ok {
-									if bindings := value.Bindings; bindings != nil {
-										for key, value := range bindings.AdditionalProperties {
-											s.protocolInfo[key] = value
+								if value, ok := trait.(map[string]interface{}); ok {
+									if value, ok := value["bindings"]; ok {
+										if bindings, ok := value.(map[string]interface{}); ok {
+											for key, value := range bindings {
+												s.protocolInfo[key] = value
+											}
 										}
 									}
 								}

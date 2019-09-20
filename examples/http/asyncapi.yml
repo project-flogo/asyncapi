@@ -9,7 +9,7 @@ info:
     url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
   production:
-    url: http://localhost:{port}/test
+    url: http://localhost:{port}
     description: Development server
     protocol: http
     protocolVersion: '1.0.0'
@@ -23,7 +23,7 @@ servers:
           - '1234'
           - '1235'
 channels:
-  message:
+  test/message:
     description: A message channel
     subscribe:
       summary: Get messages
@@ -41,7 +41,7 @@ channels:
         - bindings:
             flogo-http:
               method: "POST"
-  dup/{id}:
+  test/dup/{id}:
     description: A duplicate message channel
     subscribe:
       summary: Get messages

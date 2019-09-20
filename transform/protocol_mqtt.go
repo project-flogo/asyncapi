@@ -1,10 +1,9 @@
 package transform
 
 import (
-	"encoding/json"
 	"fmt"
 
-	"github.com/asyncapi/parser/pkg/models"
+	"github.com/project-flogo/asyncapi/transform/models"
 )
 
 var protocolMQTT = protocolConfig{
@@ -21,46 +20,34 @@ var protocolMQTT = protocolConfig{
 	paramsPath:      "topicParams",
 	triggerSettings: func(s settings) map[string]interface{} {
 		settings := map[string]interface{}{
-			"id":     fmt.Sprintf("%s%d", s.name, s.serverIndex),
+			"id":     fmt.Sprintf("%s%s", s.name, s.serverName),
 			"broker": s.url,
 		}
 		if s.userPassword {
 			settings["username"] = s.user
 			settings["password"] = s.password
 		}
-		if value := s.extensions["x-store"]; len(value) > 0 {
-			var store string
-			err := json.Unmarshal(value, &store)
-			if err != nil {
-				panic(err)
-			}
-			if store != "" {
-				settings["store"] = store
+		if value, ok := s.extensions["x-store"]; ok {
+			if store, ok := value.(string); ok {
+				if store != "" {
+					settings["store"] = store
+				}
 			}
 		}
-		if value := s.extensions["x-clean-session"]; len(value) > 0 {
-			var cleanSession bool
-			err := json.Unmarshal(value, &cleanSession)
-			if err != nil {
-				panic(err)
+		if value, ok := s.extensions["x-clean-session"]; ok {
+			if cleanSession, ok := value.(bool); ok {
+				settings["cleanSession"] = cleanSession
 			}
-			settings["cleanSession"] = cleanSession
 		}
-		if value := s.extensions["x-keep-alive"]; len(value) > 0 {
-			var keepAlive float64
-			err := json.Unmarshal(value, &keepAlive)
-			if err != nil {
-				panic(err)
+		if value, ok := s.extensions["x-keep-alive"]; ok {
+			if keepAlive, ok := value.(float64); ok {
+				settings["keepAlive"] = keepAlive
 			}
-			settings["keepAlive"] = keepAlive
 		}
-		if value := s.extensions["x-auto-reconnect"]; len(value) > 0 {
-			var autoReconnect bool
-			err := json.Unmarshal(value, &autoReconnect)
-			if err != nil {
-				panic(err)
+		if value, ok := s.extensions["x-auto-reconnect"]; ok {
+			if autoReconnect, ok := value.(bool); ok {
+				settings["autoReconnect"] = autoReconnect
 			}
-			settings["autoReconnect"] = autoReconnect
 		}
 		if s.secure {
 			sslConfig := map[string]interface{}{
@@ -68,20 +55,18 @@ var protocolMQTT = protocolConfig{
 				"keyFile":  s.keyFile,
 			}
 			skipVerify := true
-			if value := s.extensions["x-skip-verify"]; len(value) > 0 {
-				err := json.Unmarshal(value, &skipVerify)
-				if err != nil {
-					panic(err)
+			if value, ok := s.extensions["x-skip-verify"]; ok {
+				if value, ok := value.(bool); ok {
+					skipVerify = value
+					sslConfig["skipVerify"] = skipVerify
 				}
-				sslConfig["skipVerify"] = skipVerify
 			}
 			useSystemCert := true
-			if value := s.extensions["x-use-systemcert"]; !skipVerify && len(value) > 0 {
-				err := json.Unmarshal(value, &useSystemCert)
-				if err != nil {
-					panic(err)
+			if value, ok := s.extensions["x-use-systemcert"]; ok {
+				if value, ok := value.(bool); !skipVerify && ok {
+					useSystemCert = value
+					sslConfig["useSystemCert"] = useSystemCert
 				}
-				sslConfig["useSystemCert"] = useSystemCert
 			}
 			if !useSystemCert {
 				sslConfig["caFile"] = s.trustStore
@@ -103,23 +88,20 @@ var protocolMQTT = protocolConfig{
 					translated += chunk.value
 				} else {
 					var parameter *models.Parameter
-					for _, value := range s.parameters {
-						if value.Name == chunk.name {
+					for name, value := range s.parameters {
+						if name == chunk.name {
 							parameter = value
 							break
 						}
 					}
 					if parameter != nil {
-						if value := parameter.Extensions["x-multilevel"]; len(value) > 0 {
-							var multilevel bool
-							err := json.Unmarshal(value, &multilevel)
-							if err != nil {
-								panic(err)
-							}
-							if multilevel {
-								translated += "#" + chunk.name
-							} else {
-								translated += "+" + chunk.name
+						if value, ok := parameter.AdditionalProperties["x-multilevel"]; ok {
+							if multilevel, ok := value.(bool); ok {
+								if multilevel {
+									translated += "#" + chunk.name
+								} else {
+									translated += "+" + chunk.name
+								}
 							}
 						}
 					} else {
@@ -150,7 +132,7 @@ var protocolMQTT = protocolConfig{
 	serviceSettings: func(s settings) map[string]interface{} {
 		topic := s.topic[1:]
 		settings := map[string]interface{}{
-			"id":     fmt.Sprintf("%s%d_%s", s.name, s.serverIndex, s.topic),
+			"id":     fmt.Sprintf("%s%s_%s", s.name, s.serverName, s.topic),
 			"broker": s.url,
 			"topic":  topic,
 		}

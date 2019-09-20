@@ -1,4 +1,4 @@
-asyncapi: '2.0.0-rc1'
+asyncapi: '2.0.0'
 id: 'urn:com:kafka:server'
 info:
   title: Kafka Application
@@ -8,7 +8,8 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
-  - url: localhost:9092
+  production:
+    url: localhost:9092
     description: Development server
     protocol: kafka-secure
     protocolVersion: '1.0.0'
@@ -23,18 +24,20 @@ channels:
       summary: Get messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-kafka:
-          partitions: "0"
-          offset: 0
+      traits:
+        - bindings:
+            flogo-kafka:
+              partitions: "0"
+              offset: 0
     publish:
       summary: Send messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-kafka:
-          partitions: "0"
-          offset: 0
+      traits:
+        - bindings:
+            flogo-kafka:
+              partitions: "0"
+              offset: 0
   /dup:
     description: A duplicate message channel
     subscribe:

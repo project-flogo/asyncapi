@@ -18,7 +18,7 @@ var protocolEFTL = protocolConfig{
 	contentPath:     "content",
 	triggerSettings: func(s settings) map[string]interface{} {
 		settings := map[string]interface{}{
-			"id":  fmt.Sprintf("%s%d", s.name, s.serverIndex),
+			"id":  fmt.Sprintf("%s%s", s.name, s.serverName),
 			"url": s.url,
 		}
 		if s.userPassword {

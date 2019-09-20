@@ -1,4 +1,4 @@
-asyncapi: '2.0.0-rc1'
+asyncapi: '2.0.0'
 id: 'urn:com:mqtt:server'
 info:
   title: MQTT Application
@@ -8,7 +8,8 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
-  - url: ssl://localhost:1883
+  production:
+    url: ssl://localhost:1883
     description: Development server
     protocol: secure-mqtt
     protocolVersion: '1.0.0'
@@ -27,21 +28,23 @@ channels:
       summary: Get messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-mqtt:
-          replyTopic: ""
-          qos: 1
+      traits:
+        - bindings:
+            flogo-mqtt:
+              replyTopic: ""
+              qos: 1
     publish:
       summary: Send messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-mqtt:
-          store: ':memory:'
-          cleanSession: false
-          qos: 1
-          skipVerify: false
-          useSystemCert: false
+      traits:
+        - bindings:
+            flogo-mqtt:
+              store: ':memory:'
+              cleanSession: false
+              qos: 1
+              skipVerify: false
+              useSystemCert: false
   /dup:
     description: A duplicate message channel
     subscribe:

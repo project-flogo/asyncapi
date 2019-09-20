@@ -1,4 +1,4 @@
-asyncapi: '2.0.0-rc1'
+asyncapi: '2.0.0'
 id: 'urn:com:eftl:server'
 info:
   title: EFTL Application
@@ -8,7 +8,8 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
-  - url: ws://localhost:9191/channel
+  production:
+    url: ws://localhost:9191/channel
     description: Development server
     protocol: eftl-secure
     protocolVersion: '1.0.0'

@@ -94,16 +94,17 @@ var protocolMQTT = protocolConfig{
 							break
 						}
 					}
+					multilevel := false
 					if parameter != nil {
 						if value, ok := parameter.AdditionalProperties["x-multilevel"]; ok {
-							if multilevel, ok := value.(bool); ok {
-								if multilevel {
-									translated += "#" + chunk.name
-								} else {
-									translated += "+" + chunk.name
-								}
+							if value, ok := value.(bool); ok {
+								multilevel = value
 							}
 						}
+
+					}
+					if multilevel {
+						translated += "#" + chunk.name
 					} else {
 						translated += "+" + chunk.name
 					}

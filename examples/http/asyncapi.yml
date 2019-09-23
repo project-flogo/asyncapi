@@ -1,4 +1,4 @@
-asyncapi: '2.0.0-rc1'
+asyncapi: '2.0.0'
 id: 'urn:com:http:server'
 info:
   title: HTTP Application
@@ -8,13 +8,13 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
-  - url: http://localhost:{port}
+  production:
+    url: http://localhost:{port}
     description: Development server
     protocol: http
     protocolVersion: '1.0.0'
     x-trigger-version: v0.9.0-rc.1.0.20190509204259-4246269fb68e
     x-activity-version: v0.9.0-rc.1.0.20190509204259-4246269fb68e
-    baseChannel: 'test'
     variables:
       port:
         description: HTTP port number
@@ -23,38 +23,42 @@ servers:
           - '1234'
           - '1235'
 channels:
-  message:
+  test/message:
     description: A message channel
     subscribe:
       summary: Get messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-http:
-          method: "POST"
+      traits:
+        - bindings:
+            flogo-http:
+              method: "POST"
     publish:
       summary: Send messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-http:
-          method: "POST"
-  dup/{id}:
+      traits:
+        - bindings:
+            flogo-http:
+              method: "POST"
+  test/dup/{id}:
     description: A duplicate message channel
     subscribe:
       summary: Get messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-http:
-          method: "POST"
+      traits:
+        - bindings:
+            flogo-http:
+              method: "POST"
     publish:
       summary: Send messages
       message:
         $ref: '#/components/messages/message'
-      protocolInfo:
-        flogo-http:
-          method: "POST"
+      traits:
+        - bindings:
+            flogo-http:
+              method: "POST"
 components:
   messages:
     message:

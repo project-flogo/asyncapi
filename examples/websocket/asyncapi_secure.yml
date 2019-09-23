@@ -1,4 +1,4 @@
-asyncapi: '2.0.0-rc1'
+asyncapi: '2.0.0'
 id: 'urn:com:websocket:server'
 info:
   title: Websocket Application
@@ -8,7 +8,8 @@ info:
     name: Apache 2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
 servers:
-  - url: wss://localhost:8000/ws
+  production:
+    url: wss://localhost:8000/ws
     description: Development server
     protocol: wss
     protocolVersion: '1.0.0'

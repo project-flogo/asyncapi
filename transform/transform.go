@@ -8,9 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	parser "github.com/asyncapi/parser/pkg"
-	_ "github.com/asyncapi/parser/pkg/errs"
-	"github.com/asyncapi/parser/pkg/models"
+	_ "github.com/asyncapi/parser/pkg/error"
+	"github.com/project-flogo/asyncapi/transform/models"
 	"github.com/project-flogo/core/action"
 	"github.com/project-flogo/core/app"
 	"github.com/project-flogo/core/app/resource"
@@ -68,7 +67,7 @@ type settings struct {
 	protocolConfig
 	secure       bool
 	userPassword bool
-	serverIndex  int
+	serverName   string
 	url          string
 	urlPort      string
 	user         string
@@ -76,15 +75,15 @@ type settings struct {
 	trustStore   string
 	certFile     string
 	keyFile      string
-	extensions   map[string]json.RawMessage
-	parameters   []*models.Parameter
+	extensions   map[string]interface{}
+	parameters   map[string]*models.Parameter
 	topic        string
 	protocolInfo map[string]interface{}
 }
 
 func userPassword(server *models.Server, schemes map[string]interface{}) bool {
 	for _, requirement := range server.Security {
-		for scheme := range *requirement {
+		for scheme := range requirement.AdditionalProperties {
 			if entry := schemes[scheme]; entry != nil {
 				if definition, ok := entry.(map[string]interface{}); ok {
 					if value := definition["type"]; value != nil {
@@ -168,7 +167,7 @@ func getPort(url string) ([]chunk, bool) {
 	return chunks, hasVariable
 }
 
-func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDocument, schemes map[string]interface{}, flogo *app.Config, role string) {
+func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncAPI200Schema, schemes map[string]interface{}, flogo *app.Config, role string) {
 	addImport := func(path, version string) {
 		if version != "" {
 			path = fmt.Sprintf(path, version)
@@ -182,27 +181,23 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 	}
 
 	services, triggers := make([]*api.Service, 0, 8), make([]*trigger.Config, 0, 8)
-	for i, server := range model.Servers {
-		baseChannel := strings.TrimSuffix(server.BaseChannel, "/")
-		if len(baseChannel) > 0 && !strings.HasPrefix(baseChannel, "/") {
-			baseChannel = "/" + baseChannel
-		}
+	for serverName, server := range model.Servers {
 		if server.Protocol == p.name || server.Protocol == p.secure {
 			if server.Variables != nil {
-				for name, variable := range *server.Variables {
+				for name, variable := range server.Variables.AdditionalProperties {
 					defaultValue, foundDefault := variable.Default, false
 					for j, value := range variable.Enum {
 						if value == defaultValue {
 							foundDefault = true
-							attribute := data.NewAttribute(fmt.Sprintf("%s%d_%s", p.name, i, name), data.TypeString, value)
+							attribute := data.NewAttribute(fmt.Sprintf("%s%s_%s", p.name, serverName, name), data.TypeString, value)
 							flogo.Properties = append(flogo.Properties, attribute)
 							continue
 						}
-						attribute := data.NewAttribute(fmt.Sprintf("%s%d_%s_%d", p.name, i, name, j), data.TypeString, value)
+						attribute := data.NewAttribute(fmt.Sprintf("%s%s_%s_%d", p.name, serverName, name, j), data.TypeString, value)
 						flogo.Properties = append(flogo.Properties, attribute)
 					}
 					if !foundDefault {
-						attribute := data.NewAttribute(fmt.Sprintf("%s%d_%s", p.name, i, name), data.TypeString, defaultValue)
+						attribute := data.NewAttribute(fmt.Sprintf("%s%s_%s", p.name, serverName, name), data.TypeString, defaultValue)
 						flogo.Properties = append(flogo.Properties, attribute)
 					}
 				}
@@ -215,7 +210,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 					brokerUrls += "=string.concat("
 					for _, chunk := range chunks {
 						if chunk.name != "" {
-							brokerUrls += fmt.Sprintf("%s$property[%s%d_%s]", comma, p.name, i, chunk.name)
+							brokerUrls += fmt.Sprintf("%s$property[%s%s_%s]", comma, p.name, serverName, chunk.name)
 							comma = ", "
 							continue
 						}
@@ -226,10 +221,10 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 				} else {
 					chunk := chunks[0]
 					brokerUrls += "="
-					brokerUrls += fmt.Sprintf("$property[%s%d_%s]", p.name, i, chunk.name)
+					brokerUrls += fmt.Sprintf("$property[%s%s_%s]", p.name, serverName, chunk.name)
 				}
 			} else {
-				brokerUrls = fmt.Sprintf("%s%dURL", p.name, i)
+				brokerUrls = fmt.Sprintf("%s%sURL", p.name, serverName)
 				attribute := data.NewAttribute(brokerUrls, data.TypeString, server.Url)
 				brokerUrls = fmt.Sprintf("=$property[%s]", brokerUrls)
 				flogo.Properties = append(flogo.Properties, attribute)
@@ -239,32 +234,26 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 				protocolConfig: p,
 				secure:         server.Protocol == p.secure,
 				userPassword:   userPassword(server, schemes),
-				serverIndex:    i,
+				serverName:     serverName,
 				url:            brokerUrls,
 				user:           "=$env[USER]",
 				password:       "=$env[PASSWORD]",
 				trustStore:     "=$env[TRUST_STORE]",
 				certFile:       "=$env[CERT_FILE]",
 				keyFile:        "=$env[KEY_FILE]",
-				extensions:     server.Extensions,
+				extensions:     server.AdditionalProperties,
 			}
 
 			triggerVersion, activityVersion := s.triggerVersion, s.activityVersion
-			if value := s.extensions["x-trigger-version"]; len(value) > 0 {
-				var version string
-				err := json.Unmarshal(value, &version)
-				if err != nil {
-					panic(err)
+			if value, ok := s.extensions["x-trigger-version"]; ok {
+				if version, ok := value.(string); ok {
+					triggerVersion = version
 				}
-				triggerVersion = version
 			}
-			if value := s.extensions["x-activity-version"]; len(value) > 0 {
-				var version string
-				err := json.Unmarshal(value, &version)
-				if err != nil {
-					panic(err)
+			if value, ok := s.extensions["x-activity-version"]; ok {
+				if version, ok := value.(string); ok {
+					activityVersion = version
 				}
-				activityVersion = version
 			}
 			addImport(p.triggerImport, triggerVersion)
 			addImport(p.activityImport, activityVersion)
@@ -276,7 +265,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 						s.urlPort += "=string.integer(string.concat("
 						for _, chunk := range chunks {
 							if chunk.name != "" {
-								s.urlPort += fmt.Sprintf("%s$property[%s%d_%s]", comma, p.name, i, chunk.name)
+								s.urlPort += fmt.Sprintf("%s$property[%s%s_%s]", comma, p.name, serverName, chunk.name)
 								comma = ", "
 								continue
 							}
@@ -287,7 +276,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 					} else {
 						chunk := chunks[0]
 						s.urlPort += "=string.integer("
-						s.urlPort += fmt.Sprintf("$property[%s%d_%s]", p.name, i, chunk.name)
+						s.urlPort += fmt.Sprintf("$property[%s%s_%s]", p.name, serverName, chunk.name)
 						s.urlPort += ")"
 					}
 				} else {
@@ -299,7 +288,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 					if err != nil {
 						panic(err)
 					}
-					s.urlPort = fmt.Sprintf("%s%dPort", p.name, i)
+					s.urlPort = fmt.Sprintf("%s%sPort", p.name, serverName)
 					attribute := data.NewAttribute(s.urlPort, data.TypeInt, value)
 					s.urlPort = fmt.Sprintf("=$property[%s]", s.urlPort)
 					flogo.Properties = append(flogo.Properties, attribute)
@@ -307,72 +296,88 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 			}
 
 			trig := trigger.Config{
-				Id:       fmt.Sprintf("%s%d", p.name, i),
+				Id:       fmt.Sprintf("%s%s", p.name, serverName),
 				Ref:      p.trigger,
 				Settings: p.triggerSettings(s),
 			}
 
-			for name, channel := range model.Channels {
-				s.parameters = channel.Parameters
-				if strings.HasPrefix(name, "/") {
-					s.topic = name
-				} else {
-					s.topic = baseChannel + "/" + name
-				}
-				subscribe, publish := channel.Subscribe, channel.Publish
-				if role == "client" {
-					subscribe, publish = publish, subscribe
-				}
-				if subscribe != nil {
-					s.protocolInfo = nil
-					if len(subscribe.ProtocolInfo) > 0 {
-						err := json.Unmarshal(subscribe.ProtocolInfo, &s.protocolInfo)
-						if err != nil {
-							panic(err)
+			if model.Channels != nil {
+				for name, channel := range model.Channels.AdditionalProperties {
+					s.parameters = channel.Parameters
+					if strings.HasPrefix(name, "/") {
+						s.topic = name
+					} else {
+						s.topic = "/" + name
+					}
+					subscribe, publish := channel.Subscribe, channel.Publish
+					if role == "client" {
+						subscribe, publish = publish, subscribe
+					}
+					if subscribe != nil {
+						if len(subscribe.Traits) > 0 {
+							s.protocolInfo = make(map[string]interface{})
+							for _, trait := range subscribe.Traits {
+								if value, ok := trait.(map[string]interface{}); ok {
+									if value, ok := value["bindings"]; ok {
+										if bindings, ok := value.(map[string]interface{}); ok {
+											for key, value := range bindings {
+												s.protocolInfo[key] = value
+											}
+										}
+									}
+								}
+							}
 						}
-					}
-					handler := trigger.HandlerConfig{
-						Settings: p.handlerSettings(s),
-					}
-					addImport("github.com/project-flogo/microgateway@%s", MicrogatewayVersion)
-					action := action.Config{
-						Ref: "github.com/project-flogo/microgateway",
-						Settings: map[string]interface{}{
-							"uri":   fmt.Sprintf("microgateway:%s", p.name),
-							"async": true,
-						},
-					}
-					actionConfig := trigger.ActionConfig{
-						Config: &action,
-						Input: map[string]interface{}{
-							"channel": fmt.Sprintf("='%s'", s.topic),
-							"message": fmt.Sprintf("=$.%s", p.contentPath),
-						},
-					}
-					if p.paramsPath != "" {
-						actionConfig.Input["params"] = fmt.Sprintf("=$.%s", p.paramsPath)
-					}
-					handler.Actions = append(handler.Actions, &actionConfig)
-					trig.Handlers = append(trig.Handlers, &handler)
-				}
-				if publish != nil && p.activity != "" {
-					s.protocolInfo = nil
-					if len(publish.ProtocolInfo) > 0 {
-						err := json.Unmarshal(publish.ProtocolInfo, &s.protocolInfo)
-						if err != nil {
-							panic(err)
+						handler := trigger.HandlerConfig{
+							Settings: p.handlerSettings(s),
 						}
+						addImport("github.com/project-flogo/microgateway@%s", MicrogatewayVersion)
+						action := action.Config{
+							Ref: "github.com/project-flogo/microgateway",
+							Settings: map[string]interface{}{
+								"uri":   fmt.Sprintf("microgateway:%s", p.name),
+								"async": true,
+							},
+						}
+						actionConfig := trigger.ActionConfig{
+							Config: &action,
+							Input: map[string]interface{}{
+								"channel": fmt.Sprintf("='%s'", s.topic),
+								"message": fmt.Sprintf("=$.%s", p.contentPath),
+							},
+						}
+						if p.paramsPath != "" {
+							actionConfig.Input["params"] = fmt.Sprintf("=$.%s", p.paramsPath)
+						}
+						handler.Actions = append(handler.Actions, &actionConfig)
+						trig.Handlers = append(trig.Handlers, &handler)
 					}
-					service := &api.Service{
-						Name:        fmt.Sprintf("%s-name-%s", p.name, name),
-						Ref:         p.activity,
-						Description: fmt.Sprintf("%s service", p.name),
-						Settings:    p.serviceSettings(s),
+					if publish != nil && p.activity != "" {
+						if len(publish.Traits) > 0 {
+							s.protocolInfo = make(map[string]interface{})
+							for _, trait := range publish.Traits {
+								if value, ok := trait.(map[string]interface{}); ok {
+									if value, ok := value["bindings"]; ok {
+										if bindings, ok := value.(map[string]interface{}); ok {
+											for key, value := range bindings {
+												s.protocolInfo[key] = value
+											}
+										}
+									}
+								}
+							}
+						}
+						service := &api.Service{
+							Name:        fmt.Sprintf("%s-name-%s", p.name, name),
+							Ref:         p.activity,
+							Description: fmt.Sprintf("%s service", p.name),
+							Settings:    p.serviceSettings(s),
+						}
+						services = append(services, service)
 					}
-					services = append(services, service)
 				}
+				triggers = append(triggers, &trig)
 			}
-			triggers = append(triggers, &trig)
 		}
 	}
 
@@ -491,18 +496,7 @@ func (p protocolConfig) protocol(support *bytes.Buffer, model *models.AsyncapiDo
 }
 
 func convert(input, role string) (*bytes.Buffer, *app.Config) {
-	document, err := ioutil.ReadFile(input)
-	if err != nil {
-		panic(err)
-	}
-
-	parsed, perr := parser.Parse(document, true)
-	if perr != nil {
-		panic(err)
-	}
-
-	model := models.AsyncapiDocument{}
-	err = json.Unmarshal(parsed, &model)
+	model, err := models.Parse(input)
 	if err != nil {
 		panic(err)
 	}
@@ -515,11 +509,8 @@ func convert(input, role string) (*bytes.Buffer, *app.Config) {
 	flogo.AppModel = "1.1.0"
 
 	var schemes map[string]interface{}
-	if len(model.Components.SecuritySchemes) > 0 {
-		err = json.Unmarshal(model.Components.SecuritySchemes, &schemes)
-		if err != nil {
-			panic(err)
-		}
+	if model.Components.SecuritySchemes != nil {
+		schemes = model.Components.SecuritySchemes.AdditionalProperties
 	}
 
 	support := bytes.Buffer{}

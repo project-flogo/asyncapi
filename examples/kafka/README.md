@@ -30,17 +30,17 @@ go install
 ## Testing
 Start kafak server:
 ```bash
+cd examples/kafka
 docker-compose up
 ```
 
 In a new terminal build and start asyncapi kafka example:
 ```bash
-cd examples/kafka
 asyncapi -input asyncapi.yml -type flogodescriptor
 flogo create --cv v0.9.3-0.20190610180641-336db421a17a -f flogo.json kafka
 mv support.go kafka/src/
 cd kafka
-flogo build
+GOSUMDB=off flogo build
 bin/kafka
 ```
 

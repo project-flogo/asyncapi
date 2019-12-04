@@ -14,7 +14,7 @@ servers:
     protocol: kafka
     protocolVersion: '1.0.0'
     x-trigger-version: v0.9.1-0.20190603184501-d845e1d612f8
-    x-activity-version: v0.9.1-0.20190516180541-534215f1b7ac
+    x-activity-version: v0.9.1-0.20190603184501-d845e1d612f8
 channels:
   /message:
     description: A message channel

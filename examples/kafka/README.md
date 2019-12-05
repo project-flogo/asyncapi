@@ -40,7 +40,7 @@ asyncapi -input asyncapi.yml -type flogodescriptor
 flogo create --cv v0.9.3-0.20190610180641-336db421a17a -f flogo.json kafka
 mv support.go kafka/src/
 cd kafka
-GOSUMDB=off flogo build
+flogo build
 bin/kafka
 ```
 

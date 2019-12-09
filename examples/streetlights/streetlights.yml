@@ -19,6 +19,8 @@ servers:
     url: localhost:{port}
     protocol: mqtt
     description: Test broker
+    x-trigger-version: v0.0.0-20190715122927-42d43a13e2a9
+    x-activity-version: v0.0.0-20190715122927-42d43a13e2a9
     x-store: ':memory:'
     x-clean-session: false
     x-keep-alive: 2
